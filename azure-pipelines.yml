@@ -12,13 +12,15 @@ pool:
   vmImage: $(imageName)
 
 steps:
-- pwsh: ./build.ps1 -t get-dotnet-version
-  displayName: 'Get .NET Core version to use'
+- task: DotNetCoreInstaller@0
+  inputs:
+    version: '2.2.203'
+  displayName: '.NET Core SDK Installer (2.x)'
 
 - task: DotNetCoreInstaller@0
   inputs:
-    version: $(dotnetVersion)
-  displayName: '.NET Core SDK Installer'
+    version: '3.0.100-preview4-011223'
+  displayName: '.NET Core SDK Installer (3.x)'
 
 - pwsh: ./build.ps1 -t ci
   displayName: 'Build'
