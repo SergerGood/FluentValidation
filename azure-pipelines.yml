@@ -40,18 +40,14 @@ jobs:
   - pwsh: ./build.ps1 -t get-dotnet-version
     displayName: 'Get .NET Core version to use'
     # Unlike Windows, on Linux .NET Core SDKs won't fall back to the global install, so need to install 2.x explicitly as well as the 3.x preview.
-  - task: DotNetCoreInstaller@0
+  - task: DotNetCoreInstaller@1
     displayName: '.NET Core SDK Installer (2.2)'
     inputs:
       version: '2.2.203'
-  - task: DotNetCoreInstaller@0
+  - task: DotNetCoreInstaller@1
     inputs:
       version: $(dotnetVersion)
     displayName: '.NET Core SDK Installer (latest)'
-    # Unfortunately the DotNetCoreInstaller@0 task doesn't allow side-by-side installs properly, so copy the runtimes from 2.x into latest.
-    # Remove this once DotnetCoreInstaller@1 is available.
-  - script: cp -R /opt/hostedtoolcache/dncs/2.2.203/x64/shared/* /opt/hostedtoolcache/dncs/$(dotnetVersion)/x64/shared && dotnet --info
-    displayName: Workaround limitations in DotNetCoreInstaller V0   
   - pwsh: ./build.ps1 -t ci
     displayName: 'Build'
     env: 
