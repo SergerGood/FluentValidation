@@ -3,9 +3,6 @@
         <TargetFrameworks>netstandard2.0</TargetFrameworks>
         <AssemblyName>FluentValidation.DependencyInjectionExtensions</AssemblyName>
         <PackageId>FluentValidation.DependencyInjectionExtensions</PackageId>
-        <TargetFrameworks>netstandard2.0;netcoreapp3.0</TargetFrameworks>
-        <AssemblyName>FluentValidation.DependencyInjetionExtensions</AssemblyName>
-        <PackageId>FluentValidation.DependencyInjetionExtensions</PackageId>
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <Authors>Jeremy Skinner</Authors>
         <Company />
