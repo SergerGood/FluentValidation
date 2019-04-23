@@ -1,33 +1,65 @@
-strategy:
-  matrix:
-    linux:
-      imageName: 'ubuntu-16.04'
-    windows:
-      imageName: 'windows-2019'
-
 trigger:
 - master
 
-pool:
-  vmImage: $(imageName)
+variables:
+- name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE
+  value: 1
 
-steps:
-- pwsh: ./build.ps1 -t ci
-  displayName: 'Build'
-  env: 
-    kek: $(kek)
+jobs:
+- job: Windows
+  pool: 
+    vmImage: 'windows-2019'
+  steps:
+  - pwsh: ./build.ps1 -t get-dotnet-version
+    displayName: 'Get .NET Core version to use'
+  - task: DotNetCoreInstaller@0
+    inputs:
+      version: $(dotnetVersion)
+    displayName: '.NET Core SDK Installer (latest)'
+  - pwsh: ./build.ps1 -t ci
+    displayName: 'Build'
+    env: 
+      kek: $(kek)
+  - task: PublishTestResults@2
+    inputs:
+      testRunner: VSTest
+      testResultsFiles: '**/*.trx'
+      failTaskOnFailedTests: true
+  - task: NuGetCommand@2
+    displayName: 'NuGet push'
+    inputs:
+      command: push
+      publishVstsFeed: 'FluentValidation-ci'
+      allowPackageConflicts: true
+      packagesToPush: '$(Build.SourcesDirectory)/.build/packages/*.nupkg'
 
-- task: PublishTestResults@2
-  inputs:
-    testRunner: VSTest
-    testResultsFiles: '**/*.trx'
-    failTaskOnFailedTests: true
+- job: Linux
+  pool:
+    vmImage: 'ubuntu-16.04'
+  steps:
+  - pwsh: ./build.ps1 -t get-dotnet-version
+    displayName: 'Get .NET Core version to use'
+    # Unlike Windows, on Linux .NET Core SDKs won't fall back to the global install, so need to install 2.x explicitly as well as the 3.x preview.
+  - task: DotNetCoreInstaller@0
+    displayName: '.NET Core SDK Installer (2.2)'
+    inputs:
+      version: '2.2.203'
+  - task: DotNetCoreInstaller@0
+    inputs:
+      version: $(dotnetVersion)
+    displayName: '.NET Core SDK Installer (latest)'
+    # Unfortunately the DotNetCoreInstaller@0 task doesn't allow side-by-side installs properly, so copy the runtimes from 2.x into latest.
+    # Remove this once DotnetCoreInstaller@1 is available.
+  - script: cp -R /opt/hostedtoolcache/dncs/2.2.203/x64/shared/* /opt/hostedtoolcache/dncs/$(dotnetVersion)/x64/shared && dotnet --info
+    displayName: Workaround limitations in DotNetCoreInstaller V0   
+  - pwsh: ./build.ps1 -t ci
+    displayName: 'Build'
+    env: 
+      kek: $(kek)
+  - task: PublishTestResults@2
+    inputs:
+      testRunner: VSTest
+      testResultsFiles: '**/*.trx'
+      failTaskOnFailedTests: true
 
-- task: NuGetCommand@2
-  displayName: 'NuGet push'
-  inputs:
-    command: push
-    publishVstsFeed: 'FluentValidation-ci'
-    allowPackageConflicts: true
-    packagesToPush: '$(Build.SourcesDirectory)/.build/packages/*.nupkg'
-  condition: eq( variables['Agent.OS'], 'Windows_NT' )
+
