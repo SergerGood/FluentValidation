@@ -23,8 +23,8 @@ $solution_file = Join-Path $path "FluentValidation.sln"
 $keyfile = Resolve-Path "~/Dropbox/FluentValidation-Release.snk" -ErrorAction Ignore 
 $nuget_key = Resolve-Path "~/Dropbox/nuget-access-key.txt" -ErrorAction Ignore
 
-target default -depends find-sdk, compile, test, deploy
-target ci -depends ci-set-version, decrypt-private-key, install-dotnet-core, default
+target default -depends compile, test, deploy
+target ci -depends ci-set-version, decrypt-private-key, default
 
 target compile {
   if ($keyfile) {
@@ -115,71 +115,6 @@ target decrypt-private-key {
   }
   else {
     Write-Host "No KEK available to decrypt private key."
-  }
-}
-
-target install-dotnet-core {
-  # Version check as $IsWindows, $IsLinux etc are not defined in PS 5, only PS Core.
-  $win = (($PSVersionTable.PSVersion.Major -le 5) -or $IsWindows)
-  $json = ConvertFrom-Json (Get-Content "$path/global.json" -Raw)
-  $required_version = $json.sdk.version
-  # If there's a version mismatch with what's defined in global.json then a 
-  # call to dotnet --version will generate an error. AppVeyor vs local seem to have different
-  # behaviours handling exit codes (appveyor will immediately halt execution on windows, but not linux)
-  # so the simplest workaround is to write the output to a file and read it back rathre than rely on exit codes. 
-  try { dotnet --version 2>&1>$null } catch { $install_sdk = $true }
-  
-  if ($global:LASTEXITCODE) {
-    $install_sdk = $true;
-    $global:LASTEXITCODE = 0;
-  }
-
-  if ($install_sdk) {
-    $installer = $null;
-    if ($win) {
-      $installer = "$path/dotnet-installer.ps1" 
-      (New-Object System.Net.WebClient).DownloadFile("https://dot.net/v1/dotnet-install.ps1", $installer);
-    }
-    else { 
-      $installer = "$path/dotnet-installer"
-      (New-Object System.Net.WebClient).DownloadFile("https://dot.net/v1/dotnet-install.sh", $installer); 
-      chmod +x dotnet-installer
-    }
-
-    # Extract the channel from the minimum required version.
-    $bits = $json.sdk.version.split(".")
-    $channel = $bits[0] + "." + $bits[1];
-    Write-Host Installing $json.sdk.version from $channel
-    . $installer -i "$path/.dotnetsdk" -c $channel -v $json.sdk.version
-
-    # Collect installed SDKs.
-    $sdks = & "$path/.dotnetsdk/dotnet" --list-sdks | ForEach-Object { 
-      $version = $_.Split(" ")[0].Split(".")
-      $version[0] + "." + $version[1];
-    }
-    
-    # Install any other SDKs required. Only bother installing if not installed already. 
-    $json.others.PSObject.Properties | Foreach-Object {
-      if (!($sdks -contains $_.Name)) {
-        Write-Host Installing $_.Value from $_.Name
-        . $installer -i "$path/.dotnetsdk" -c $_.Name -v $_.Value
-      }
-    }
-  }
-}
-
-target find-sdk {
-  if (Test-Path "$path/.dotnetsdk") {
-    Write-Host "Using .NET SDK from $path/.dotnetsdk"
-    $env:DOTNET_INSTALL_DIR = "$path/.dotnetsdk"
-
-    if (($PSVersionTable.PSVersion.Major -le 5) -or $IsWindows) {
-      $env:PATH = "$env:DOTNET_INSTALL_DIR;$env:PATH"
-    }
-    else {
-      # Linux uses colon not semicolon, so can't use string interpolation
-      $env:PATH = $env:DOTNET_INSTALL_DIR + ":" + $env:PATH
-    }
   }
 }
 

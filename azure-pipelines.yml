@@ -1,61 +1,52 @@
+strategy:
+  matrix:
+    linux:
+      imageName: 'ubuntu-16.04'
+    windows:
+      imageName: 'windows-2019'
+
 trigger:
 - master
 
+pool:
+  vmImage: $(imageName)
+  
 variables:
 - name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE
   value: 1
 
-jobs:
-- job: Windows
-  pool: 
-    vmImage: 'windows-2019'
-  steps:
-  - pwsh: ./build.ps1 -t get-dotnet-version
-    displayName: 'Get .NET Core version to use'
-  - task: DotNetCoreInstaller@0
-    inputs:
-      version: $(dotnetVersion)
-    displayName: '.NET Core SDK Installer (latest)'
-  - pwsh: ./build.ps1 -t ci
-    displayName: 'Build'
-    env: 
-      kek: $(kek)
-  - task: PublishTestResults@2
-    inputs:
-      testRunner: VSTest
-      testResultsFiles: '**/*.trx'
-      failTaskOnFailedTests: true
-  - task: NuGetCommand@2
-    displayName: 'NuGet push'
-    inputs:
-      command: push
-      publishVstsFeed: 'FluentValidation-ci'
-      allowPackageConflicts: true
-      packagesToPush: '$(Build.SourcesDirectory)/.build/packages/*.nupkg'
+steps:
+  # Get the required SDK from global.json. Outputs to variable $(dotnetVersion) 
+- pwsh: ./build.ps1 -t get-dotnet-version
+  displayName: 'Get .NET Core version to use'
 
-- job: Linux
-  pool:
-    vmImage: 'ubuntu-16.04'
-  steps:
-  - pwsh: ./build.ps1 -t get-dotnet-version
-    displayName: 'Get .NET Core version to use'
-    # Unlike Windows, on Linux .NET Core SDKs won't fall back to the global install, so need to install 2.x explicitly as well as the 3.x preview.
-  - task: DotNetCoreInstaller@1
-    displayName: '.NET Core SDK Installer (2.2)'
-    inputs:
-      version: '2.2.203'
-  - task: DotNetCoreInstaller@1
-    inputs:
-      version: $(dotnetVersion)
-    displayName: '.NET Core SDK Installer (latest)'
-  - pwsh: ./build.ps1 -t ci
-    displayName: 'Build'
-    env: 
-      kek: $(kek)
-  - task: PublishTestResults@2
-    inputs:
-      testRunner: VSTest
-      testResultsFiles: '**/*.trx'
-      failTaskOnFailedTests: true
+  # Install 2.2 as well as the latest 3.x that's specified in global.json.
+- task: DotNetCoreInstaller@1
+  inputs:
+    version: '2.2.105'
+  displayName: '.NET Core SDK Installer (2.x)'
+ 
+- task: DotNetCoreInstaller@1
+  inputs:
+    version: $(dotnetVersion)
+  displayName: '.NET Core SDK Installer (3.x)'
 
+- pwsh: ./build.ps1 -t ci
+  displayName: 'Build'
+  env: 
+    kek: $(kek)
 
+- task: PublishTestResults@2
+  inputs:
+    testRunner: VSTest
+    testResultsFiles: '**/*.trx'
+    failTaskOnFailedTests: true
+
+- task: NuGetCommand@2
+  displayName: 'NuGet push'
+  inputs:
+    command: push
+    publishVstsFeed: 'FluentValidation-ci'
+    allowPackageConflicts: true
+    packagesToPush: '$(Build.SourcesDirectory)/.build/packages/*.nupkg'
+  condition: eq( variables['Agent.OS'], 'Windows_NT' )
